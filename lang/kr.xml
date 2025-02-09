@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<translations>
+    <search>
+        <button>검색</button>
+        <advanced_search>고급 검색</advanced_search>
+        <no_results_found>조건에 맞는 결과가 없습니다.</no_results_found>
+        <search_results>검색 결과</search_results>
+        <level_description>최소-최대 범위에서 검색</level_description>
+        <error_title>입력 오류</error_title>
+        <error_range>레벨 범위 값이 잘못되었습니다. 올바른 형식은 '숫자~숫자'입니다.</error_range>
+        <error_single>레벨 값이 잘못되었습니다. 숫자를 입력해주세요.</error_single>
+    </search>
+    <settings>
+        <button>설정</button>
+        <select_folder>폴더 선택</select_folder>
+        <rescan_button>폴더 재스캔</rescan_button>
+        <tag_management>태그 설정</tag_management>
+        <mark_management>마크 설정</mark_management>
+        <data_reset>데이터 리셋</data_reset>
+        <reset_limit>인원 수 리셋</reset_limit>
+        <reset_mark>마크 리셋</reset_mark>
+        <reset_tag>태그 리셋</reset_tag>
+        <reset_time>플레이 타임 리셋</reset_time>
+        <reset_comp>완료 표시 리셋</reset_comp>
+        <reset_all>전체 리셋</reset_all>
+        <data_reset_description>원하는 작업을 선택해주세요.</data_reset_description>
+        <reset_done_title>리셋 완료</reset_done_title>
+        <reset_done_message>리셋이 완료되었습니다.</reset_done_message>
+        <about>이 프로그램은</about>
+        <license>라이선스</license>
+        <credits>크레딧</credits>
+        <program_info>ScenarioIndex 정보</program_info>
+    </settings>
+    <main>
+        <search_keyword>검색 키워드</search_keyword>
+        <search_field>검색 조건</search_field>
+        <sort_field>정렬 조건</sort_field>
+        <sort_order_time>최근 파일</sort_order_time>
+        <sort_level_min>최소 레벨</sort_level_min>
+        <search_field_all>전체</search_field_all>
+        <refresh_button>새로고침</refresh_button>
+        <copy_success_title>복사 완료</copy_success_title>
+        <copy_success_message>클릭한 칸의 텍스트가 클립보드에 복사되었습니다.</copy_success_message>
+        <jump_tooltip>이동하고 싶은 페이지 번호를 입력하세요</jump_tooltip>
+    </main>
+    <headers>
+        <mark>마크</mark>
+        <title>제목</title>
+        <author>작성자</author>
+        <version>엔진</version>
+        <level>레벨</level>
+        <limit>인원</limit>
+        <time>시간</time>
+        <tags>태그</tags>
+        <completed>완료</completed>
+        <summary>벽보</summary>
+        <info>정보</info>
+        <coupon>쿠폰</coupon>
+        <folder>폴더</folder>
+    </headers>
+    <tags>
+        <battle>전투</battle>
+        <dungeon>던전</dungeon>
+        <explorer>탐색</explorer>
+        <novel>노벨</novel>
+        <shop>상점</shop>
+        <town>마을</town>
+        <item>아이템</item>
+        <skill>스킬</skill>
+        <short>단편</short>
+        <long>장편</long>
+    </tags>
+    <tag_management>
+        <title>태그 설정</title>
+        <tag_key_header>태그 키</tag_key_header>
+        <translation_header>태그명</translation_header>
+        <add_tag>태그 추가</add_tag>
+        <delete_tag>태그 삭제</delete_tag>
+        <delete_all_tags>전체 삭제</delete_all_tags>
+        <filter_placeholder>검색할 태그를 입력하세요...</filter_placeholder>
+    </tag_management>
+    <mark_management>
+        <title>마크 설정</title>
+        <change_mark_image>마크 이미지 변경</change_mark_image>
+    </mark_management>        
+    <edit_field>
+        <title>데이터 수정</title>
+        <prompt>
+수정할 항목: {field}
+기존 데이터: {value}</prompt>
+        <empty>없음</empty>
+        <level_edit_label>수정할 레벨을 입력해주세요.</level_edit_label>
+        <limit_edit_title>인원수 수정</limit_edit_title>
+        <limit_edit_label>인원 제한을 입력해주세요(1~6).
+n명 이상은 n~, n명 이하는 ~n,
+제한 없음은 99를 입력해주세요.</limit_edit_label>
+        <level_min>최소 레벨</level_min>
+        <level_max>최대 레벨</level_max>
+    </edit_field>
+    <summary>
+        <level_label>대상 레벨</level_label>
+    </summary>
+    <detail>
+        <coupon_title>필요한 쿠폰 목록</coupon_title>
+    </detail>
+    <play_time>
+        <null>　</null>
+        <under10>10분 이하</under10>
+        <about15>15분 정도</about15>
+        <about20>20분 정도</about20>
+        <about30>30분 정도</about30>
+        <under60>1시간 미만</under60>
+        <over60>1시간 이상</over60>
+        <over120>2시간 이상</over120>
+        <unknown>불명</unknown>
+    </play_time>
+    <boolean_options>
+        <none>없음</none>
+        <yes>있음</yes>
+    </boolean_options>
+    <limit>
+        <none>없음</none>
+    </limit>
+    <version>
+        <og>통상</og>
+    </version>
+    <save_changes>저장</save_changes>
+    <confirm>확인</confirm>
+    <cancel>취소</cancel>
+    <close>닫기</close>
+    <delete>삭제</delete>
+</translations>
