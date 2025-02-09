@@ -179,7 +179,6 @@ class DatabaseManager:
                     exists = self.cursor.fetchone()
 
                     if not exists:
-                        logger.info(f"Inserting new file: {file_path}")
                         self.cursor.execute("""
                             INSERT INTO file_data (file_path, title, author, version, level_min, level_max, 
                                                 coupon_number, coupon_name, image_paths, position_types, 

@@ -492,7 +492,6 @@ def find_files_with_content(folder_path):
 
             #  WSN 파일은 ZIP이지만, 바로 extract_info_from_scenario()로 전달
             if filename.lower().endswith(".wsn") or filename.lower().endswith(".wsm"):
-                logger.debug(f"Processing scenario file: {file_path}")
                 extracted_info = extract_info_from_scenario(file_path)  #  ZIP이지만 바로 처리
             elif filename.lower().endswith("summary.xml"):
                 logger.debug(f"Processing Summary.xml file: {file_path}")
