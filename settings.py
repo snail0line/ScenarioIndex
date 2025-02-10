@@ -591,7 +591,7 @@ class AboutWindow(QWidget):
         if self.current_language == "kr":
             return (
                 "<h2>ScenarioIndex</h2>"
-                "<p><b>버전:</b> 0.1.0</p>"
+                "<p><b>버전:</b> 0.1.1</p>"
                 "<b>제작자:</b> SilliN<br>"
                 "<b>이메일:</b> snail0line@gmail.com<br>"
                 "<b>GitHub:</b> <a href='https://github.com/snail0line/ScenarioIndex'>ScenarioIndex</a>"
@@ -599,7 +599,7 @@ class AboutWindow(QWidget):
         elif self.current_language == "jp":        
             return (
                 "<h2>ScenarioIndex</h2>"
-                "<p><b>バージョン:</b> 0.1.0</p>"
+                "<p><b>バージョン:</b> 0.1.1</p>"
                 "<b>制作者:</b> SilliN<br>"
                 "<b>メール:</b> snail0line@gmail.com<br>"
                 "<b>GitHub:</b> <a href='https://github.com/snail0line/ScenarioIndex'>ScenarioIndex</a>"
