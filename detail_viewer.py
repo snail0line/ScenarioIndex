@@ -9,6 +9,7 @@ import json
 import traceback
 from file_scanner import load_image_data
 from languages import language_settings
+from utils_and_ui import JapaneseZipHandler
 
 def sanitize_path(image_path):
     # Windows 경로에서 \을 /로 변환하되, 유니코드 문자가 손상되지 않도록 처리
@@ -272,7 +273,6 @@ class InfoDetailViewer(QDialog):
         self.lang = lang
         self.txt_files = self.get_all_txt_files()
         self.font_size = 10
-
         self._setup_ui()
 
     def _setup_ui(self):
@@ -288,7 +288,7 @@ class InfoDetailViewer(QDialog):
 
         # 파일 선택 드롭다운
         self.dropdown = QComboBox(self)
-        self.dropdown.addItems(self.txt_files)
+        self.populate_txt_list()  # 드롭다운에 파일 추가
         self.dropdown.currentIndexChanged.connect(self.on_file_selected)
         top_layout.addWidget(self.dropdown)
 
@@ -312,82 +312,90 @@ class InfoDetailViewer(QDialog):
         layout.addWidget(self.text_area)
 
         # 첫 번째 파일 자동 선택
-        if self.txt_files:
+        if self.dropdown.count() > 0:
             self.on_file_selected(0)
         else:
             self.text_area.setPlainText("No text files found.")
 
     def get_all_txt_files(self):
-        """시나리오 폴더 또는 .wsn, .wsm, .zip 파일 안의 모든 .txt 파일을 반환"""
+        """시나리오 폴더 또는 ZIP 내부의 모든 .txt 파일 반환"""
         txt_files = []
 
-        # ✅ ZIP 내부 파일인지 확인
-        if "!" in self.file_path:
+        if ".zip!" in self.file_path:
             zip_path, inner_file = self.file_path.split("!", 1)
-            zip_path = os.path.normpath(zip_path).replace("\\", "/")  # 경로 정리
+            txt_files.extend(self._get_txt_files_from_zip(zip_path))
 
-            if zipfile.is_zipfile(zip_path):
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    # ✅ ZIP 내부에서 TXT 파일만 추가
-                    for file in zip_ref.namelist():
-                        if file.lower().endswith(".txt"):
-                            txt_files.append(f"{zip_path}!{file}")  # 경로 포함하여 추가
-
-        # ✅ .wsm 파일의 경우, 같은 폴더 내 TXT 파일 찾기
-        elif self.scenario_ext == ".wsm":
-            folder_path = os.path.normpath(self.scenario_folder).replace("\\", "/")  # 경로 정리
-            if os.path.exists(folder_path) and os.path.isdir(folder_path):
-                for file in os.listdir(folder_path):
-                    if file.lower().endswith(".txt"):
-                        txt_files.append(os.path.join(folder_path, file).replace("\\", "/"))
-
-        # ✅ .wsn 파일의 경우, ZIP 내 TXT 파일 찾기
         elif self.scenario_ext == ".wsn":
-            if os.path.exists(self.file_path) and zipfile.is_zipfile(self.file_path):
-                logger.debug(f"Opening .wsn file from ZIP: {self.file_path}")
-                with zipfile.ZipFile(self.file_path, 'r') as wsn_zip:
-                    for file in wsn_zip.namelist():
-                        if file.lower().endswith(".txt"):
-                            logger.debug(f"Found .txt file inside WSN: {file}")
-                            txt_files.append(f"{self.file_path}!{file}")
+            txt_files.extend(self._get_txt_files_from_zip(self.file_path))
 
-        # ✅ 일반 폴더인 경우, TXT 파일 찾기
+        elif self.scenario_ext == ".wsm":
+            txt_files.extend(self._get_txt_files_from_folder(self.scenario_folder))
+
         elif os.path.isdir(self.file_path):
-            folder_path = os.path.normpath(self.file_path).replace("\\", "/")
-            for file in os.listdir(folder_path):
-                if file.lower().endswith(".txt"):
-                    txt_files.append(os.path.join(folder_path, file).replace("\\", "/"))
+            txt_files.extend(self._get_txt_files_from_folder(self.file_path))
 
-        # ✅ "read"가 포함된 파일을 우선적으로 표시하도록 정렬
-        txt_files.sort(key=lambda x: ('read' not in x.lower(), x.lower()))
-        
+        # ✅ 정렬 기준을 display 값으로 변경
+        txt_files.sort(key=lambda x: ('read' not in x["display"].lower(), x["display"].lower()))
         return txt_files
 
 
 
-    def set_font_by_lang(self):
-        """언어 코드에 따라 폰트를 설정하는 함수"""
-        font = QFont("gulim" if self.lang == "kr" else "MS Gothic", self.font_size)
-        self.text_area.setFont(font)
+    def _get_txt_files_from_zip(self, zip_path):
+        """ZIP 파일 내 .txt 파일만 반환 (파일명 디코딩 적용)"""
+        txt_files = []
+        if zipfile.is_zipfile(zip_path):
+            logger.debug(f"Scanning ZIP file for .txt files: {zip_path}")
+            with JapaneseZipHandler(zip_path) as zip_handler:
+                for orig_name in zip_handler._zip_ref.namelist():
+                    if orig_name.lower().endswith(".txt"):  # ✅ .txt 파일만 필터링
+                        decoded_name = zip_handler.get_real_filename_for_txt(orig_name)
+                        if decoded_name:
+                            logger.debug(f"Decoded name: {decoded_name}")
+                            txt_files.append({
+                                "original": f"{zip_path}!{orig_name}",
+                                "display": decoded_name
+                            })
+        else:
+            logger.warning(f"{zip_path} is not a valid ZIP file.")
+        return txt_files
 
-    def increase_font_size(self):
-        if self.font_size < 18:
-            self.font_size += 2
-            self.set_font_by_lang()
 
-    def decrease_font_size(self):
-        if self.font_size > 8:
-            self.font_size -= 2
-            self.set_font_by_lang()
+    def _get_txt_files_from_folder(self, folder_path):
+        """폴더 내 .txt 파일 반환 (dict 형식으로 original과 display 분리)"""
+        txt_files = []
+        folder_path = os.path.normpath(folder_path)
+        
+        if os.path.exists(folder_path) and os.path.isdir(folder_path):
+            for file in os.listdir(folder_path):
+                if file.lower().endswith(".txt"):
+                    full_path = os.path.join(folder_path, file).replace("\\", "/")
+                    txt_files.append({
+                        "original": full_path,       # 내부에서 사용할 전체 경로
+                        "display": file              # 사용자에게 보여줄 파일명
+                    })
+        return txt_files
 
     def on_file_selected(self, index):
-        """드롭다운에서 파일 선택 시 해당 파일 내용 불러오기"""
-        selected_file = self.dropdown.currentText()
+        """TXT 파일 선택 시 내용 로드"""
+        selected_file = self.dropdown.itemData(index)  # 내부 경로 가져오기
 
-        if "!" in selected_file:
+        if ".zip!" in selected_file or ".wsn!" in selected_file:
             self.load_zip_txt_content(selected_file)
         else:
             self.load_file_content(selected_file)
+
+
+
+    def populate_txt_list(self):
+        """TXT 파일 리스트를 QComboBox에 추가"""
+        txt_files = self.txt_files
+        self.dropdown.clear()
+
+        for file_info in txt_files:
+            file_name = os.path.basename(file_info["display"])  # 파일명만 추출
+            self.dropdown.addItem(file_name, file_info["original"])  # 파일명은 사용자에게 표시, original은 내부 데이터로 저장
+
+
 
     def load_zip_txt_content(self, file_path):
         """ZIP 내부의 TXT 파일을 불러오기"""
@@ -407,11 +415,10 @@ class InfoDetailViewer(QDialog):
             logger.error(f"Failed to open ZIP TXT file: {e}\nTraceback:\n{tb}")
             QMessageBox.critical(self, "Error", f"Failed to open ZIP TXT file: {e}")
 
-
     def load_file_content(self, file_path):
         """파일 내용을 불러와 텍스트 영역에 표시"""
         try:
-            # ✅ ZIP 파일 내부일 경우 처리
+            # ZIP 파일 내부일 경우 처리
             if "!" in file_path:
                 zip_path, inner_file = file_path.split("!", 1)  # ZIP 경로와 내부 파일 경로 분리
                 zip_path = os.path.normpath(zip_path).replace("\\", "/")  # 경로 정리
@@ -440,7 +447,6 @@ class InfoDetailViewer(QDialog):
             logger.error(f"Failed to open file: {e}\nTraceback:\n{tb}")
             QMessageBox.critical(self, "Error", f"Failed to open file: {e}")
 
-
     @staticmethod
     def decode_file_data(file_data):
         """파일 데이터를 여러 인코딩으로 디코딩"""
@@ -448,11 +454,11 @@ class InfoDetailViewer(QDialog):
         
         # 🔍 파일에서 BOM 확인 후 인코딩 결정
         if file_data.startswith(b'\xef\xbb\xbf'):
-            return file_data.decode("utf-8-sig")  # ✅ UTF-8 BOM 제거
+            return file_data.decode("utf-8-sig")  # UTF-8 BOM 제거
         elif file_data.startswith(b'\xff\xfe'):
-            return file_data.decode("utf-16-le")  # ✅ UTF-16 LE
+            return file_data.decode("utf-16-le")  # UTF-16 LE
         elif file_data.startswith(b'\xfe\xff'):
-            return file_data.decode("utf-16-be")  # ✅ UTF-16 BE
+            return file_data.decode("utf-16-be")  # UTF-16 BE
         
         # 🔍 기본 인코딩 감지 후 시도
         try:
@@ -471,6 +477,21 @@ class InfoDetailViewer(QDialog):
         # 🔴 모든 인코딩이 실패하면 오류 반환
         raise UnicodeDecodeError("모든 인코딩 시도 실패")
 
+    def set_font_by_lang(self):
+        """언어 코드에 따라 폰트를 설정하는 함수"""
+        font = QFont("gulim" if self.lang == "kr" else "MS Gothic", self.font_size)
+        self.text_area.setFont(font)
+        self.dropdown.setFont(font)
+
+    def increase_font_size(self):
+        if self.font_size < 18:
+            self.font_size += 2
+            self.set_font_by_lang()
+
+    def decrease_font_size(self):
+        if self.font_size > 8:
+            self.font_size -= 2
+            self.set_font_by_lang()
 
     def show_details(self):
         """Info 창을 표시"""

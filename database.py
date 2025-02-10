@@ -92,32 +92,6 @@ class DatabaseManager:
         self.cursor.execute(query, params)
         return self.cursor.fetchone()[0]
     
-    def insert_file_data(self, file_path: str, title: str, author: str, version: str, level_min: int, level_max: int,
-                        coupon_number: int, coupon_name: str, image_paths: str, position_types: str, 
-                        description: str, lang: str, modification_time: float,
-                        limit_value: int = 0, play_time: str = '', mark: str = 'mark00', 
-                        tags: Optional[List[str]] = None, is_completed: int = 0) -> None:
-        """파일 데이터를 데이터베이스에 삽입 또는 업데이트합니다."""
-        try:
-            # JSON 데이터 변환
-            image_paths_json = json.dumps(image_paths, ensure_ascii=False)
-            position_types_json = json.dumps(position_types, ensure_ascii=False)
-            
-            # 파일 데이터 삽입/업데이트
-            self.cursor.execute("""
-                INSERT OR REPLACE INTO file_data (
-                    file_path, title, author, version, level_min, level_max, coupon_number, coupon_name, 
-                    image_paths, position_types, description, lang, modification_time, limit_value, play_time, mark,
-                    file_tags, is_completed
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (file_path, title, author, version, level_min, level_max, coupon_number, coupon_name, 
-                image_paths_json, position_types_json, description, lang, modification_time, 
-                limit_value, play_time, mark, json.dumps(tags or [], ensure_ascii=False), is_completed))  # tags가 None이면 빈 리스트로 처리
-            
-            self.connection.commit()
-        except Exception as e:
-            self.connection.rollback()
-
     def update_files_for_folder(self, folder_path):
         try:
             # ✅ 기존 데이터베이스에서 해당 폴더의 파일 경로 가져오기

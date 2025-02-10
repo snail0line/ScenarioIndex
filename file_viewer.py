@@ -780,13 +780,17 @@ class FileViewer(QWidget):
                 self.show_coupon_details(coupon_name)                 
         elif column == 12:
             file_path = current_file_data.get('file_path')  # 현재 행의 파일 경로 가져오기
-            folder_path = os.path.abspath(os.path.dirname(file_path))  # 파일 경로에서 폴더 경로 추출
 
-            if os.path.exists(folder_path):  # 폴더가 존재하는지 확인
+            # ✅ ZIP 파일 내부 경로인지 확인
+            if ".zip!" in file_path:
+                zip_path, inner_file = file_path.split("!", 1)
+                folder_path = os.path.abspath(os.path.dirname(zip_path))  # ZIP 파일이 있는 폴더 반환
+            else:
+                folder_path = os.path.abspath(os.path.dirname(file_path))  # 일반 파일의 폴더 경로 반환
+
+            if os.path.exists(folder_path):
                 try:
-                    # 플랫폼에 따라 폴더 열기
-                    if os.name == 'nt':  # Windows
-                        subprocess.Popen(['explorer', folder_path])  # 명령어를 리스트로 전달
+                    subprocess.Popen(['explorer', folder_path])  # Windows 탐색기로 폴더 열기
                     logger.info(f"Opened folder: {folder_path}")
                 except Exception as e:
                     logger.error(f"Failed to open folder: {folder_path}, Error: {e}")
@@ -794,6 +798,7 @@ class FileViewer(QWidget):
             else:
                 logger.warning(f"Folder does not exist: {folder_path}")
                 QMessageBox.warning(self, "Warning", f"The folder does not exist:\n{folder_path}")
+
 
     def show_time_selector(self, index, current_file_data):
         """Time 열에서 시간 선택용 콤보박스를 표시하는 메서드"""

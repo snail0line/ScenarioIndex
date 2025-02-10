@@ -10,6 +10,7 @@ from loguru import logger
 import os
 import multiprocessing
 import msvcrt
+import traceback
 
 from file_viewer import FileViewer
 from search import SearchManager, AdvancedSearchWindow
@@ -31,14 +32,20 @@ logger.add(
     format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
 )
 
+
 def exception_hook(exctype, value, traceback_obj):
     """예외 발생 시 호출될 핸들러"""
-    # 오류를 로그 파일에 기록
-    logger.error(f"Unhandled exception occurred: {value}", exc_info=(exctype, value, traceback_obj))
-
-    # 오류 메시지 박스 표시
-    QMessageBox.critical(None, "Critical Error", f"An unexpected error occurred:\n{value}")
-    sys.exit(1)  # 프로그램 종료
+    # 전체 traceback을 문자열로 변환
+    tb_string = ''.join(traceback.format_exception(exctype, value, traceback_obj))
+    
+    # 로그 파일에 기록
+    logger.error(f"Unhandled exception occurred:\n{tb_string}")
+    
+    # 오류 메시지 박스 표시 (간단한 메시지 + 자세한 로그는 파일로)
+    QMessageBox.critical(None, "Critical Error", f"An unexpected error occurred:\n{value}\nCheck the log file for details.")
+    
+    # 프로그램 종료
+    sys.exit(1)
 
 # 전역 예외 훅 설정
 sys.excepthook = exception_hook
@@ -371,8 +378,6 @@ class MainApp(QWidget):
             logger.error("Error in open_settings", exc_info=True)
             QMessageBox.critical(self, "Error", f"Failed to open settings window:\n{e}")
 
-
-    
     def closeEvent(self, event):
         """앱 종료 시 데이터베이스 연결 종료"""
         QApplication.quit()

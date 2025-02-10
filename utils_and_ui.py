@@ -3,6 +3,142 @@ from PyQt5.QtWidgets import QPushButton
 from PyQt5.QtCore import QSize
 import os
 import image_data
+import re
+import zipfile
+from loguru import logger
+
+
+class JapaneseZipHandler:
+    # 한글, 일본어 문자 범위 정의
+    HANGUL_RANGE = re.compile(r'[\uAC00-\uD7AF]')
+    HIRAGANA_RANGE = re.compile(r'[\u3040-\u309F]')
+    KATAKANA_RANGE = re.compile(r'[\u30A0-\u30FF]')
+    KANJI_RANGE = re.compile(r'[\u4E00-\u9FFF]')
+    VALID_FILENAME = re.compile(r'^[\u0020-\u007E\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]+$')
+
+    def __init__(self, zip_path):
+        self.zip_path = zip_path
+        self._zip_ref = None
+        self.encoding = None
+
+    def __enter__(self):
+        self._zip_ref = zipfile.ZipFile(self.zip_path, 'r')
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._zip_ref:
+            self._zip_ref.close()
+
+    def detect_filename_encoding(self):
+        """ZIP 파일의 파일명 인코딩을 감지"""
+        try:
+            # UTF-8 플래그 확인
+            for info in self._zip_ref.filelist:
+                if info.flag_bits & 0x800:
+                    logger.debug("ZIP uses UTF-8 for filenames")
+                    self.encoding = 'utf-8'
+                    return 'utf-8'
+
+            # 테스트용 샘플 파일명 추출
+            sample_name = self._zip_ref.namelist()[0]
+            raw_bytes = sample_name.encode('cp437')  # ZIP의 기본 인코딩으로 변환
+
+            # 일본어 인코딩 우선 시도
+            for enc in ['cp932', 'shift_jis', 'euc_jp']:
+                try:
+                    decoded = raw_bytes.decode(enc)
+                    if any([
+                        self.HIRAGANA_RANGE.search(decoded),
+                        self.KATAKANA_RANGE.search(decoded),
+                        self.KANJI_RANGE.search(decoded)
+                    ]):
+                        logger.debug(f"Detected {enc} encoding")
+                        self.encoding = enc
+                        return enc
+                except UnicodeDecodeError:
+                    continue
+
+            logger.debug("Falling back to cp437")
+            self.encoding = 'cp437'
+            return 'cp437'
+
+        except Exception as e:
+            logger.error(f"Error detecting encoding: {e}")
+            self.encoding = 'cp437'
+            return 'cp437'
+
+    def get_real_filename(self, filename):
+        """실제 파일명 가져오기 (wsm, summary.xml만 확인)"""
+        # 필요한 확장자만 처리
+        if not filename.lower().endswith(('.wsm', 'summary.xml')):
+            return filename  # 원래 이름 그대로 반환
+
+        if not self.encoding:
+            self.detect_filename_encoding()
+
+        try:
+            # cp437로 인코딩된 바이트로 변환 후 실제 인코딩으로 디코딩
+            raw_bytes = filename.encode('cp437')
+            decoded = raw_bytes.decode(self.encoding)
+            
+            if self.VALID_FILENAME.match(decoded):
+                return decoded
+
+            # 백업 인코딩 시도
+            for backup_enc in ['cp932', 'shift_jis', 'euc_jp', 'utf-8']:
+                if backup_enc == self.encoding:
+                    continue
+                try:
+                    backup_decoded = raw_bytes.decode(backup_enc)
+                    if self.VALID_FILENAME.match(backup_decoded):
+                        logger.debug(f"Backup decode successful with {backup_enc}: {backup_decoded}")
+                        return backup_decoded
+                except UnicodeDecodeError:
+                    continue
+
+        except UnicodeDecodeError as e:
+            logger.error(f"Decoding error: {e}")
+        
+        return filename  # 디코딩 실패 시 원래 이름 반환
+
+    def get_real_filename_for_txt(self, filename):
+        """.txt 파일만 디코딩하여 실제 파일명 반환"""
+        if not filename.lower().endswith(".txt"):
+            return None  # .txt 파일이 아니면 무시
+
+        if not self.encoding:
+            self.detect_filename_encoding()
+
+        try:
+            # ✅ cp437로 인코딩된 바이트로 변환 후 self.encoding으로 디코딩
+            raw_bytes = filename.encode('cp437')  # cp437로 인코딩 시도
+            decoded = raw_bytes.decode(self.encoding)
+            
+            if self.VALID_FILENAME.match(decoded):
+                return decoded
+
+            # ✅ 백업 인코딩 순차적으로 시도
+            for backup_enc in ['cp932', 'shift_jis', 'euc_jp', 'utf-8']:
+                if backup_enc == self.encoding:
+                    continue
+                try:
+                    backup_decoded = raw_bytes.decode(backup_enc)
+                    if self.VALID_FILENAME.match(backup_decoded):
+                        logger.debug(f"Backup decode successful with {backup_enc}: {backup_decoded}")
+                        return backup_decoded
+                except UnicodeDecodeError:
+                    continue
+
+        except (UnicodeEncodeError, UnicodeDecodeError) as e:
+            logger.error(f"Decoding error for .txt file: {e}")
+
+        return filename  # 디코딩 실패 시 원래 이름 반환
+
+
+
+    def list_contents(self):
+        """ZIP 내용물 리스트 반환"""
+        return [(name, self.get_real_filename(name)) for name in self._zip_ref.namelist()]
 
 
 def to_half_width(text: str) -> str:

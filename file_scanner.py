@@ -12,6 +12,8 @@ import types
 from PyQt5.QtWidgets import QMessageBox
 from loguru import logger
 
+from utils_and_ui import JapaneseZipHandler
+
 language_code = None
 
 
@@ -272,29 +274,6 @@ def detect_language(text):
     else:
         return None
 
-def decode_filename(name):
-    try:
-        encodings = ['utf-8', 'shift_jis', 'euc-jp', 'cp932']
-        for encoding in encodings:
-            try:
-                result = name.encode('latin-1').decode(encoding, errors='replace')
-                return result
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                continue
-        
-        # chardet의 감지 결과를 시도
-        detected = chardet.detect(name.encode('latin-1', errors='ignore'))
-        if detected and detected['encoding']:
-            detected_encoding = detected['encoding']
-            try:
-                return name.encode('latin-1', errors='ignore').decode(detected_encoding, errors='replace')
-            except (UnicodeDecodeError, UnicodeEncodeError):
-                logger.debug(f"[DEBUG] '{detected_encoding}' 인코딩 실패")
-    except Exception as e:
-        logger.error(f"파일명 디코딩 실패: {e}")
-    
-    return name  # 디코딩 실패 시 원본 그대로 반환
-
 def read_with_encoding(file, file_path):
     raw_data = file.read()
 
@@ -318,31 +297,69 @@ def read_with_encoding(file, file_path):
         except UnicodeDecodeError as e_cp932:
             return raw_data.decode("utf-8", errors="ignore")  # 최종 대체
 
-def extract_info_from_scenario(file_path, file_name=None, zip_path=None, is_zip=False):
+
+def find_files_with_content(folder_path):
+    """폴더 내 모든 파일을 스캔하고 ZIP 파일의 특정 내용 추출"""
+    files = []
+    zip_files = []
+
+    for dirpath, _, filenames in os.walk(folder_path):
+        for filename in filenames:
+            file_path = os.path.join(dirpath, filename).replace("\\", "/")
+
+            # ZIP 파일 필터링
+            if filename.lower().endswith(".zip"):
+                zip_files.append(file_path)
+                continue
+
+            # WSN 또는 WSM 파일 처리
+            if filename.lower().endswith((".wsn", ".wsm")):
+                extracted_info = extract_info_from_scenario(file_path)
+                if extracted_info:
+                    files.append(extracted_info)
+
+    # ZIP 파일 처리
+    for zip_path in zip_files:
+        extracted_info = process_zip_file(zip_path)
+        if extracted_info:
+            files.append(extracted_info)
+
+    logger.info(f"Total number of scanned files: {len(files)}")
+    return files
+
+def extract_info_from_scenario(file_path, file_name=None, zip_path=None, is_zip=False, zip_handler=None):
     """WSN, WSM 파일에서 정보를 추출 (ZIP 내부 포함)"""
     extracted_info = {}
 
-    #  ZIP 내부 파일일 경우, zip_path를 사용하여 전체 경로 생성
+    # 실제 파일 경로 생성
     actual_file_path = f"{zip_path}!{file_name}" if is_zip else file_path
 
-    is_wsn = file_name.lower().endswith('.wsn') if file_name else isinstance(file_path, str) and file_path.endswith('.wsn')
-    is_wsm = file_name.lower().endswith('.wsm') if file_name else isinstance(file_path, str) and file_path.endswith('.wsm')
+    # JapaneseZipHandler 사용 여부에 따라 파일명 디코딩
+    if zip_handler and file_name:
+        decoded_file_name = zip_handler.get_real_filename(file_name)
+    else:
+        decoded_file_name = file_name or file_path
 
-    #  WSN 파일 처리 (ZIP 내부가 아닌 경우만)
-    if is_wsn and "!" not in file_path:  #  ZIP 내부 파일이면 무시
+    # 확장자 확인
+    is_wsn = decoded_file_name.lower().endswith('.wsn') if decoded_file_name else file_path.lower().endswith('.wsn')
+    is_wsm = decoded_file_name.lower().endswith('.wsm') if decoded_file_name else file_path.lower().endswith('.wsm')
+
+    # WSN 파일 처리
+    if is_wsn and not is_zip:
         try:
             with zipfile.ZipFile(file_path, 'r') as wsn_zip:
-                xml_files = [decode_filename(name) for name in wsn_zip.namelist() if name.lower().endswith('.xml')]
-                summary_file_name = next((f for f in xml_files if f.lower() == 'summary.xml'), None)
-
+                with JapaneseZipHandler(file_path) as handler:
+                    summary_file_name = next(
+                        (name for name in wsn_zip.namelist() if name.lower().endswith('summary.xml')),
+                        None
+                    )
                 if summary_file_name:
                     with wsn_zip.open(summary_file_name) as summary_file:
-                        xml_data = read_with_encoding(summary_file, file_name)
+                        xml_data = read_with_encoding(summary_file, summary_file_name)
                     extracted_info = parse_xml_data(xml_data)
 
-                #  WSN 파일의 경우 version을 'Py'로 설정
                 extracted_info['Version'] = 'Py'
-                extracted_info['file_path'] = actual_file_path  #  WSN 파일 경로 유지
+                extracted_info['file_path'] = actual_file_path
         except zipfile.BadZipFile:
             logger.error(f"[ERROR] '{file_path}'는 ZIP 형식이 아닙니다.")
             return {
@@ -351,34 +368,31 @@ def extract_info_from_scenario(file_path, file_name=None, zip_path=None, is_zip=
                 'description': '', 'language_code': 'Unknown', 'file_path': actual_file_path
             }
 
-
-    #  WSM 파일 처리 (ZIP 내부 또는 외부)
+    # WSM 파일 처리 (ZIP 내부 또는 외부)
     elif is_wsm:
         try:
-            if is_zip:
-                # ZIP 내부의 WSM 파일을 바이너리로 읽음
+            if not isinstance(file_path, str):
+                # ZIP 내부의 WSM 파일
                 raw_data = file_path.read()
-                f = CWFile(None, 'rb', f=io.BytesIO(raw_data))  # BytesIO로 변환 후 읽기
+                f = CWFile(None, 'rb', f=io.BytesIO(raw_data))
             else:
                 # 일반 WSM 파일
                 f = CWFile(file_path, 'rb')
 
             reader = SummaryFileReader(f, file_path)
             extracted_data = reader.read_summary_data()
-
             extracted_info = dict(zip(
                 ['Name', 'Author', 'Version', 'Level min', 'Level max', 'RequiredCoupons_number', 
                  'RequiredCoupons_name', 'image_paths', 'position_types', 'image_data', 
                  'description', 'language_code', 'file_path'],
                 extracted_data
             ))
-
-            extracted_info['file_path'] = actual_file_path  #  ZIP 내부 파일이면 전체 경로 저장
-
+            extracted_info['file_path'] = actual_file_path
         except Exception as e:
             logger.error(f"WSM 파일 처리 중 오류 발생: {e}")
 
-    return extracted_info
+    formatted_data = format_file_data(extracted_info, file_path)
+    return formatted_data
 
 def parse_summary_from_folder(folder_path: str, show_warning: bool = True) -> dict:
     external_summary_path = os.path.join(folder_path, 'Summary.xml')
@@ -435,7 +449,7 @@ def parse_xml_data(xml_data: str) -> dict:
         root = ET.fromstring(xml_data)
         property_element = root.find('Property')
         if property_element is not None:
-            extracted_info['Name'] = property_element.findtext('Name', default='Unknown')
+            extracted_info['Name'] = property_element.findtext('Name', default='')
             extracted_info['Author'] = property_element.findtext('Author', default='Unknown')
             level_element = property_element.find('Level')
             if level_element is not None:
@@ -475,96 +489,71 @@ def parse_xml_data(xml_data: str) -> dict:
     
     return extracted_info
 
-def find_files_with_content(folder_path):
-    """주어진 폴더 경로에서 파일 정보를 스캔하고 반환"""
-    files = []  # 파일 정보를 담을 리스트
-    zip_files = []  # ZIP 파일을 따로 저장
+def process_zip_file(zip_path):
+    """향상된 ZIP 파일 처리 함수 (summary.xml 또는 summary.wsm만 추출)"""
+    try:
+        with JapaneseZipHandler(zip_path) as zip_handler:
+            logger.debug(f"Scanning ZIP: {zip_path}")
 
-    #  폴더 내 모든 파일 탐색 (ZIP 파일을 제외하고 먼저 처리)
-    for dirpath, dirnames, filenames in os.walk(folder_path):
-        for filename in filenames:
-            file_path = os.path.join(dirpath, filename).replace("\\", "/")  #  경로 슬래시 통일
+            # ZIP 내부 파일 중 summary.xml 또는 summary.wsm만 추출
+            target_files = [
+                (orig, decoded) for orig, decoded in zip_handler.list_contents()
+                if decoded.lower().endswith(('summary.xml', 'summary.wsm'))
+            ]
 
-            #  ZIP 파일은 나중에 처리하도록 리스트에 저장
-            if filename.lower().endswith(".zip"):
-                zip_files.append(file_path)
-                continue  # ZIP 파일은 나중에 처리하도록 건너뛰기
+            if not target_files:
+                logger.debug(f"No target files found in {zip_path}")
+                return None
 
-            #  WSN 파일은 ZIP이지만, 바로 extract_info_from_scenario()로 전달
-            if filename.lower().endswith(".wsn") or filename.lower().endswith(".wsm"):
-                extracted_info = extract_info_from_scenario(file_path)  #  ZIP이지만 바로 처리
-            elif filename.lower().endswith("summary.xml"):
-                logger.debug(f"Processing Summary.xml file: {file_path}")
-                with open(file_path, "rb") as xml_file:
-                    xml_data = read_with_encoding(xml_file, file_path)
-                    extracted_info = parse_xml_data(xml_data)
-            else:
-                continue  #  다른 파일들은 무시
+            for original_name, decoded_name in target_files:
+                logger.debug(f"Processing: {decoded_name}")
+                try:
+                    # 암호화된 파일인지 확인 및 처리
+                    with zip_handler._zip_ref.open(original_name) as summary_file:
+                        return parse_summary_from_zip(summary_file, decoded_name, zip_path)
+                except RuntimeError as e:
+                    if "password required" in str(e).lower():
+                        logger.error(f"File '{decoded_name}' is encrypted. Skipping...")
+                    else:
+                        logger.error(f"Failed to open file: {decoded_name}. Error: {e}")
+                    continue
 
-            #  파일 수정 시간 가져오기 (변경 여부 확인용)
-            modification_time = os.path.getmtime(file_path)
+    except zipfile.BadZipFile:
+        logger.error(f"Bad ZIP file: {zip_path}")
+    return None
 
-            if extracted_info:
-                file_data = {
-                    'file_path': extracted_info.get('file_path', file_path),
-                    'title': extracted_info.get('Name', 'Unknown'),
-                    'author': extracted_info.get('Author', 'Unknown'),
-                    'version': extracted_info.get('Version', 'Py'),
-                    'level_min': extracted_info.get('Level min', ''),
-                    'level_max': extracted_info.get('Level max', ''),
-                    'coupon_number': extracted_info.get('RequiredCoupons', {}).get('number', 0),
-                    'coupon_name': extracted_info.get('RequiredCoupons', {}).get('name', ''),
-                    'image_paths': extracted_info.get('image_paths', []),
-                    'position_types': extracted_info.get('position_types', []),
-                    'image_data': None,  # 기본적으로 None으로 설정
-                    'description': extracted_info.get('description', ''),
-                    'lang': extracted_info.get('language_code', 'Unknown'),
-                    'modification_time': modification_time,
-                    'limit_value': 0,  # 기본값 추가
-                    'play_time': None,  # 기본값 추가
-                    'mark': 'mark00',  # 기본값 추가
-                    'tags': []  # 기본값 추가
-                }
-                
-                files.append(file_data)
 
-    #  ZIP 파일은 나중에 처리
-    for zip_path in zip_files:
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_contents = [decode_filename(name) for name in zip_ref.namelist()]
-            logger.debug(f"Decoded ZIP Contents: {zip_contents}")
 
-            for file_name in zip_contents:
-                if file_name.lower().endswith(("summary.xml", "summary.wsm")):
-                    logger.debug(f"Found Summary file in ZIP: {file_name}")
-                    with zip_ref.open(file_name) as summary_file:
-                        extracted_info = parse_summary_from_zip(summary_file, file_name, zip_path)
+def format_file_data(extracted_info, file_path, zip_path=None):
+    """extracted_info 데이터를 일관된 형식으로 변환"""
+    if isinstance(file_path, str):
+        modification_time = os.path.getmtime(file_path)
+    elif zip_path and isinstance(zip_path, str):
+        modification_time = os.path.getmtime(zip_path)  # ZIP 파일의 수정 시간 사용
+    else:
+        modification_time = None  # 수정 시간을 알 수 없는 경우 None
 
-                    #  ZIP 내부 파일도 파일 목록에 추가
-                    if extracted_info:
-                        files.append({
-                            'file_path': f"{zip_path}!{file_name}",
-                            'title': extracted_info.get('Name', 'Unknown'),
-                            'author': extracted_info.get('Author', 'Unknown'),
-                            'version': extracted_info.get('Version', 'Py'),
-                            'level_min': extracted_info.get('Level min', ''),
-                            'level_max': extracted_info.get('Level max', ''),
-                            'coupon_number': extracted_info.get('RequiredCoupons', {}).get('number', 0),
-                            'coupon_name': extracted_info.get('RequiredCoupons', {}).get('name', ''),
-                            'image_paths': extracted_info.get('image_paths', []),
-                            'position_types': extracted_info.get('position_types', []),
-                            'image_data': None,  # 기본적으로 None으로 설정
-                            'description': extracted_info.get('description', ''),
-                            'lang': extracted_info.get('language_code', 'Unknown'),
-                            'modification_time': os.path.getmtime(zip_path),  # ZIP 파일의 수정 시간
-                            'limit_value': 0,  # 기본값 추가
-                            'play_time': None,  # 기본값 추가
-                            'mark': 'mark00',  # 기본값 추가
-                            'tags': []  # 기본값 추가
-                        })
+    return {
+        'file_path': extracted_info.get('file_path', file_path),
+        'title': extracted_info.get('Name', 'Unknown'),
+        'author': extracted_info.get('Author', 'Unknown'),
+        'version': extracted_info.get('Version', 'Py'),
+        'level_min': extracted_info.get('Level min', ''),
+        'level_max': extracted_info.get('Level max', ''),
+        'coupon_number': extracted_info.get('RequiredCoupons', {}).get('number', 0),
+        'coupon_name': extracted_info.get('RequiredCoupons', {}).get('name', ''),
+        'image_paths': extracted_info.get('image_paths', []),
+        'position_types': extracted_info.get('position_types', []),
+        'image_data': None,
+        'description': extracted_info.get('description', ''),
+        'lang': extracted_info.get('language_code', 'Unknown'),
+        'modification_time': modification_time,  # 수정 시간 적용
+        'limit_value': 0,
+        'play_time': None,
+        'mark': 'mark00',
+        'tags': []
+    }
 
-    logger.info(f"Total Number of Scanned Files: {len(files)}")
-    return files
 
 def parse_summary_from_zip(summary_file, file_name, zip_path=None):
     """ZIP 내부에서 Summary.xml 또는 Summary.wsm 내용을 읽어와서 파싱"""
@@ -597,31 +586,37 @@ def parse_summary_from_zip(summary_file, file_name, zip_path=None):
 def load_image_data(file_path):
     """특정 WSM 파일의 image_data를 로드하여 반환합니다."""
     
-    #  ZIP 내부 파일인지 확인
-    if "!" in file_path:
+    # ✅ ZIP 내부 파일인지 확인
+    if ".zip!" in file_path:
         zip_path, inner_file = file_path.split("!", 1)
         
         if zipfile.is_zipfile(zip_path):
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                if inner_file.lower().endswith(".wsm"):
-                    logger.debug(f"Extracting WSM from ZIP: {zip_path}!{inner_file}")
-                    with zip_ref.open(inner_file) as wsm_file:
-                        wsm_data = io.BytesIO(wsm_file.read())  #  BytesIO 변환 후 읽기
-                        with CWFile(None, 'rb', f=wsm_data) as f:  #  BytesIO를 f 인자로 전달
-                            reader = SummaryFileReader(f, inner_file)
+            with JapaneseZipHandler(zip_path) as zip_handler:
+                logger.debug(f"Scanning ZIP: {zip_path}")
+                # ZIP 내 모든 파일 목록을 디코딩된 이름과 함께 가져옴
+                contents = dict(zip_handler.list_contents())
+                
+                if inner_file in contents.values():
+                    real_file = [key for key, val in contents.items() if val == inner_file][0]
+                    logger.debug(f"Extracting WSM from ZIP: {zip_path}!{real_file}")
+                    with zip_handler._zip_ref.open(real_file) as wsm_file:
+                        wsm_data = io.BytesIO(wsm_file.read())  # BytesIO 변환 후 읽기
+                        with CWFile(None, 'rb', f=wsm_data) as f:
+                            reader = SummaryFileReader(f, real_file)
                             extracted_info = reader.read_summary_data()
-                            return extracted_info[9]  #  image_data 반환
+                            return extracted_info[9]  # image_data 반환
+                else:
+                    logger.error(f"File '{inner_file}' not found in ZIP: {zip_path}")
+                    logger.debug(f"Available files: {list(contents.values())}")
 
-        logger.error(f"{file_path}에서 WSM 파일을 찾을 수 없습니다.")
-        return None
-
-    #  일반 WSM 파일 처리
+    # ✅ 일반 WSM 파일 처리
     elif file_path.endswith('.wsm'):
         with CWFile(file_path, 'rb') as f:
             reader = SummaryFileReader(f, file_path)
             extracted_info = reader.read_summary_data()
-            return extracted_info[9]  #  image_data 반환
+            logger.info(f"Extracted image data from {file_path}")
+            return extracted_info[9]  # image_data 반환
 
-    #  WSM이 아닌 경우 오류 처리
+    # ✅ WSM이 아닌 경우 오류 처리
     logger.error(f"{file_path}은 WSM 파일이 아닙니다. 이미지 데이터를 로드할 수 없습니다.")
     return None
