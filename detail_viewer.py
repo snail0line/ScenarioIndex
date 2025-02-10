@@ -344,13 +344,11 @@ class InfoDetailViewer(QDialog):
         """ZIP 파일 내 .txt 파일만 반환 (파일명 디코딩 적용)"""
         txt_files = []
         if zipfile.is_zipfile(zip_path):
-            logger.debug(f"Scanning ZIP file for .txt files: {zip_path}")
             with JapaneseZipHandler(zip_path) as zip_handler:
                 for orig_name in zip_handler._zip_ref.namelist():
                     if orig_name.lower().endswith(".txt"):  # ✅ .txt 파일만 필터링
                         decoded_name = zip_handler.get_real_filename_for_txt(orig_name)
                         if decoded_name:
-                            logger.debug(f"Decoded name: {decoded_name}")
                             txt_files.append({
                                 "original": f"{zip_path}!{orig_name}",
                                 "display": decoded_name

@@ -493,8 +493,6 @@ def process_zip_file(zip_path):
     """향상된 ZIP 파일 처리 함수 (summary.xml 또는 summary.wsm만 추출)"""
     try:
         with JapaneseZipHandler(zip_path) as zip_handler:
-            logger.debug(f"Scanning ZIP: {zip_path}")
-
             # ZIP 내부 파일 중 summary.xml 또는 summary.wsm만 추출
             target_files = [
                 (orig, decoded) for orig, decoded in zip_handler.list_contents()
@@ -592,7 +590,6 @@ def load_image_data(file_path):
         
         if zipfile.is_zipfile(zip_path):
             with JapaneseZipHandler(zip_path) as zip_handler:
-                logger.debug(f"Scanning ZIP: {zip_path}")
                 # ZIP 내 모든 파일 목록을 디코딩된 이름과 함께 가져옴
                 contents = dict(zip_handler.list_contents())
                 

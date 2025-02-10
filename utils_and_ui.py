@@ -130,7 +130,7 @@ class JapaneseZipHandler:
                     continue
 
         except (UnicodeEncodeError, UnicodeDecodeError) as e:
-            logger.error(f"Decoding error for .txt file: {e}")
+            pass
 
         return filename  # 디코딩 실패 시 원래 이름 반환
 
