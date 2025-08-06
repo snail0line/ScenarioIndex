@@ -746,7 +746,7 @@ class FilterWidget(QWidget):
 
             checkbox = QCheckBox(translated_label)
             checkbox.setProperty('value', choice)
-            checkbox.toggled.connect(self.valueChanged)
+            checkbox.toggled.connect(self.valueChanged.emit)
             self.choice_boxes.append(checkbox)
 
             # 그리드에 배치 (2열로 배치 예제)
@@ -770,7 +770,7 @@ class FilterWidget(QWidget):
             return self._create_mark_widget()
         widget = QLineEdit()
         widget.setPlaceholderText(self.column_def.patterns[0])
-        widget.textChanged.connect(lambda: self.valueChanged.emit())  # 수정된 부분
+        widget.textChanged.connect(lambda: self.valueChanged.emit())  
         return widget
 
     def _create_mark_widget(self) -> QWidget:
