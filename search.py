@@ -846,8 +846,17 @@ class MarkComboBox(QComboBox):
         
         for mark_name in sorted(self.selected_marks):
             mark_image = self.mark_manager.get_mark_image(mark_name)
-            if isinstance(mark_image, QImage):
-                pixmap = QPixmap.fromImage(mark_image)
+            if mark_image is None or mark_image.isNull():
+                # 기본 마크 사용
+                mark_image = self.mark_manager.get_mark_image('mark00')
+            
+            if mark_image and not mark_image.isNull():
+                # QImage인지 QPixmap인지 체크
+                if isinstance(mark_image, QImage):
+                    pixmap = QPixmap.fromImage(mark_image)
+                else:  # QPixmap인 경우
+                    pixmap = mark_image
+                
                 pixmaps.append(pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
         if pixmaps:
