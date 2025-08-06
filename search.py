@@ -722,7 +722,7 @@ class FilterWidget(QWidget):
 
     def _create_text_widget(self) -> QLineEdit:
         widget = QLineEdit()
-        widget.textChanged.connect(lambda: self.valueChanged())
+        widget.textChanged.connect(self.valueChanged.emit)
         return widget
 
     def _create_choices_widget(self) -> QWidget:
@@ -770,7 +770,7 @@ class FilterWidget(QWidget):
             return self._create_mark_widget()
         widget = QLineEdit()
         widget.setPlaceholderText(self.column_def.patterns[0])
-        widget.textChanged.connect(lambda: self.valueChanged())
+        widget.textChanged.connect(lambda: self.valueChanged.emit())  # 수정된 부분
         return widget
 
     def _create_mark_widget(self) -> QWidget:
