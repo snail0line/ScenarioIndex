@@ -519,12 +519,12 @@ class TagManager:
             try:
                 current_language = language_settings.current_locale.upper()  # 현재 언어 가져오기
 
-                if current_language == "kr":
+                if current_language == "KR":
                     self.db.cursor.execute(
                         "INSERT INTO tags_list (tag, KR_translation, JP_translation) VALUES (?, ?, NULL)",
                         (tag_key, translation_text)
                     )
-                elif current_language == "jp":
+                elif current_language == "JP":
                     self.db.cursor.execute(
                         "INSERT INTO tags_list (tag, KR_translation, JP_translation) VALUES (?, NULL, ?)",
                         (tag_key, translation_text)
