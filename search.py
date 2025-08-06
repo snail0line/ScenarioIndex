@@ -897,10 +897,18 @@ class MarkComboBox(QComboBox):
             button.clicked.connect(lambda: self.check_mark_limit())
             
             mark_image = self.mark_manager.get_mark_image(mark_name)
-            if isinstance(mark_image, QImage):
-                pixmap = QPixmap.fromImage(mark_image)
-                button.setIcon(QIcon(pixmap.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+            if mark_image is None or mark_image.isNull():
+                # 기본 마크 사용
+                mark_image = self.mark_manager.get_mark_image('mark00')
+
+            # 최종적으로 이미지가 있으면 아이콘 설정
+            if mark_image and not mark_image.isNull():
+                # mark_image가 이미 QPixmap이므로 직접 사용
+                scaled_pixmap = mark_image.scaled(32, 32, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                button.setIcon(QIcon(scaled_pixmap))
                 button.setIconSize(QSize(32, 32))
+            else:
+                button.setEnabled(False)  # 이미지가 없으면 버튼 비활성화
 
             self.mark_buttons[mark_name] = button
             grid_layout.addWidget(button, i // 6, i % 6)
@@ -1118,7 +1126,7 @@ class MultiSelectTagComboBox(QComboBox):
                     background: #f8f9fa;
                 }
             """)
-            self.tag_selector.itemClicked.connect(lambda:self.on_tag_clicked())
+            self.tag_selector.itemClicked.connect(self.on_tag_clicked)
             tag_area_layout.addWidget(self.tag_selector)
 
             # 선택된 태그 영역
