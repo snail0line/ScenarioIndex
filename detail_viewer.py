@@ -321,8 +321,8 @@ class InfoDetailViewer(QDialog):
         """시나리오 폴더 또는 ZIP 내부의 모든 .txt 파일 반환"""
         txt_files = []
 
-        if ".zip!" in self.file_path:
-            zip_path, inner_file = self.file_path.split("!", 1)
+        if ".zip||" in self.file_path:
+            zip_path, inner_file = self.file_path.split("||", 1)
             txt_files.extend(self._get_txt_files_from_zip(zip_path))
 
         elif self.scenario_ext == ".wsn":
@@ -350,7 +350,7 @@ class InfoDetailViewer(QDialog):
                         decoded_name = zip_handler.get_real_filename_for_txt(orig_name)
                         if decoded_name:
                             txt_files.append({
-                                "original": f"{zip_path}!{orig_name}",
+                                "original": f"{zip_path}||{orig_name}",
                                 "display": decoded_name
                             })
         else:
@@ -377,7 +377,7 @@ class InfoDetailViewer(QDialog):
         """TXT 파일 선택 시 내용 로드"""
         selected_file = self.dropdown.itemData(index)  # 내부 경로 가져오기
 
-        if ".zip!" in selected_file or ".wsn!" in selected_file:
+        if ".zip||" in selected_file or ".wsn||" in selected_file:
             self.load_zip_txt_content(selected_file)
         else:
             self.load_file_content(selected_file)
@@ -398,7 +398,7 @@ class InfoDetailViewer(QDialog):
     def load_zip_txt_content(self, file_path):
         """ZIP 내부의 TXT 파일을 불러오기"""
         try:
-            path_parts = file_path.split("!")
+            path_parts = file_path.split("||")
             zip_path = path_parts[0]
             inner_file = path_parts[1]
 
@@ -417,8 +417,8 @@ class InfoDetailViewer(QDialog):
         """파일 내용을 불러와 텍스트 영역에 표시"""
         try:
             # ZIP 파일 내부일 경우 처리
-            if "!" in file_path:
-                zip_path, inner_file = file_path.split("!", 1)  # ZIP 경로와 내부 파일 경로 분리
+            if "||" in file_path:
+                zip_path, inner_file = file_path.split("||", 1)  # ZIP 경로와 내부 파일 경로 분리
                 zip_path = os.path.normpath(zip_path).replace("\\", "/")  # 경로 정리
 
                 if zipfile.is_zipfile(zip_path):
