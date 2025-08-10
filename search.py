@@ -1102,7 +1102,7 @@ class MultiSelectTagComboBox(QComboBox):
             # 검색 필터 LineEdit 설정
             self.filter_input = QLineEdit(self.popup)
             self.filter_input.setPlaceholderText(language_settings.translate("tag_management.filter_placeholder"))
-            self.filter_input.textChanged.connect(lambda: self.filter_tags())
+            self.filter_input.textChanged.connect(self.filter_tags)
             self.filter_input.setStyleSheet("""
                 QLineEdit {
                     padding: 4px;
