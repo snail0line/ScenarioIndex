@@ -1098,8 +1098,15 @@ class FileViewer(QWidget):
         current_data = self.file_data[row]
         current_value = current_data.get(field, "")
         file_path = current_data['file_path']
+
+        if isinstance(current_value, str):
+            current_value_for_label = current_value.replace("\\n", "\n")
+        else:
+            current_value_for_label = current_value
+    
         logger.debug(f"Editing field: {field}")
-        logger.debug(f"Current value: {current_value}")
+        logger.debug(f"Current value: {current_value_for_label}")
+        
         field_translation_keys = {
             "title": "headers.title",
             "author": "headers.author",
@@ -1109,8 +1116,8 @@ class FileViewer(QWidget):
         title = language_settings.translate("edit_field.title")
         prompt = language_settings.translate("edit_field.prompt").format(
             field=language_settings.translate(field_translation_key),
-            value=current_value or language_settings.translate("edit_field.empty")
-        )
+            value="\n" + (current_value_for_label or language_settings.translate("edit_field.empty")))
+
         dialog = QDialog(self)
         dialog.setWindowTitle(title)
         dialog.setFixedWidth(280)  # 최소 너비 설정
