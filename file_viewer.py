@@ -1128,7 +1128,7 @@ class FileViewer(QWidget):
             text_edit.setFixedHeight(30)  # 고정된 높이 설정
         else:
             text_edit = QTextEdit()  # 여러 줄 입력
-            text_edit.setText(current_value)
+            text_edit.setText(current_value.replace("\\n", "\n"))
             text_edit.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)  # 자동 줄바꿈 활성화
 
             # 텍스트 길이에 따른 동적 크기 조절
@@ -1163,13 +1163,14 @@ class FileViewer(QWidget):
         dialog.setLayout(layout)
         dialog.setWindowFlags(dialog.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         if dialog.exec_() == QDialog.Accepted:
-            # ✅ QLineEdit과 QTextEdit을 구분하여 new_value 가져오기
             if isinstance(text_edit, QLineEdit):
-                new_value = text_edit.text().strip()  # ✅ QLineEdit은 .text() 사용
+                new_value = text_edit.text()
             elif isinstance(text_edit, QTextEdit):
-                new_value = text_edit.toPlainText().strip()  # ✅ QTextEdit은 .toPlainText() 사용
+                new_value = text_edit.toPlainText()
             else:
                 new_value = ""
+
+            new_value = new_value.replace("\\n", "\n")
 
             if new_value:
                 self.db.update_field(file_path, field, new_value)
