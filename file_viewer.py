@@ -958,14 +958,14 @@ class FileViewer(QWidget):
     def update_ui_after_edit(self, file_path, updated_key, updated_value):
         """
         DB에서 수정된 데이터를 UI에 즉시 반영하는 함수
-        - 검색 중이면 `self.search_results`를 업데이트하고 `apply_search_results()` 호출
+        - 검색 중이면 `self.search_results`를 업데이트하고 `apply_search_results()` 호출 (페이지 유지)
         - 일반 목록이면 `load_file_list()` 호출
         """
         if self.is_search_active:
             for item in self.search_results:
                 if item["file_path"] == file_path:
                     item[updated_key] = updated_value  # 변경된 데이터 적용
-            self.apply_search_results(self.search_results)  # 검색 결과 갱신
+            self.apply_search_results(self.search_results, reset_page=False)  # 현재 페이지 유지
         else:
             self.load_file_list()  # 일반 목록 새로고침
 
@@ -1229,7 +1229,7 @@ class FileViewer(QWidget):
         except ValueError:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid number.")
 
-    def apply_search_results(self, search_results: List[Dict[str, Any]]):
+    def apply_search_results(self, search_results: List[Dict[str, Any]], reset_page: bool = True):
         """검색 결과를 저장하고 검색 상태를 활성화"""
         # 검색 결과 저장 및 검색 상태 활성화
         self.search_results = search_results
@@ -1242,10 +1242,24 @@ class FileViewer(QWidget):
             )
             logger.info("No search results found.")
             return  # 기존 데이터를 유지
+        
         self.is_search_active = True
         logger.info(f"Search activated with {len(self.search_results)} results.")
 
-        # UI 및 검색 결과 첫 페이지 데이터 로드
+        # 새로운 검색일 때는 1페이지로 이동, DB 업데이트 시에는 현재 페이지 유지
+        if reset_page:
+            self.current_page = 1
+            logger.info("New search performed. Reset to page 1.")
+        else:
+            # 현재 페이지가 검색 결과의 총 페이지 수를 초과하는지 확인
+            search_total_pages = max(1, (len(self.search_results) + self.page_size - 1) // self.page_size)
+            if self.current_page > search_total_pages:
+                self.current_page = search_total_pages
+                logger.info(f"Current page exceeds search total pages. Adjusted to page {self.current_page}.")
+            else:
+                logger.info(f"Maintaining current page {self.current_page} after DB update.")
+
+        # UI 및 검색 결과 데이터 로드
         self.load_file_list()
 
     def update_pagination_ui(self):
