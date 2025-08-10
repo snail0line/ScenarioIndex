@@ -1246,7 +1246,6 @@ class FileViewer(QWidget):
         logger.info(f"Search activated with {len(self.search_results)} results.")
 
         # UI 및 검색 결과 첫 페이지 데이터 로드
-        self.current_page = 1
         self.load_file_list()
 
     def update_pagination_ui(self):
